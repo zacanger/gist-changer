@@ -1,66 +1,52 @@
-require('dotenv').config();
-const Twitter = require('twitter');
 const Octokit = require('@octokit/rest')
-const wordwrap = require('wordwrap');
-const { formatDistanceStrict } = require('date-fns');
+const wordwrap = require('wordwrap')
 
-const {
-  TWITTER_USER: twitterHandle,
-  GIST_ID: gistId,
-} = process.env;
+const items = require('fs')
+  .readFileSync(require('path').resolve(__dirname, 'list.txt'))
+  .toString()
+  .split('\n')
+  .filter(Boolean)
 
-const twitter = new Twitter({
-  consumer_key: process.env.TWITTER_CONSUMER_KEY,
-  consumer_secret: process.env.TWITTER_CONSUMER_SECRET,
-  access_token_key: process.env.TWITTER_ACCESS_TOKEN_KEY,
-  access_token_secret: process.env.TWITTER_ACCESS_TOKEN_SECRET
-});
+const getItem = () =>
+  items[~~(Math.random() * items.length)]
+
+const { GIST_ID: gistId, GITHUB_TOKEN: ghToken } = process.env
 
 const octokit = new Octokit({
-  auth: `token ${process.env.GITHUB_TOKEN}`
+  auth: `token ${ghToken}`
 });
 
-async function main() {
-  const timeline = await twitter.get('statuses/user_timeline', {
-    screen_name: twitterHandle, 
-    count: 1,
-    trim_user: 1,
-    exclude_replies: true
-   });
+const updateGist = async (item) => {
+  const wrap = wordwrap(46)
 
-  const tweet = timeline[0];
-  await updateGist(tweet);
-}
-
-async function updateGist(tweet) {
-  const wrap = wordwrap(46);
-
-  let gist;
+  let gist
   try {
-    gist = await octokit.gists.get({ gist_id: gistId });
-  } catch (error) {
-    console.error(`Unable to get gist\n${error}`)
+    gist = await octokit.gists.get({ gist_id: gistId })
+  } catch (err) {
+    console.error(`Unable to get gist\n${err}`)
   }
+
   // Get original filename to update that same file
-  const filename = Object.keys(gist.data.files)[0];
-  const parsedDate = new Date(tweet.created_at);
-  const timeAgo = formatDistanceStrict(parsedDate, new Date());
+  const filename = Object.keys(gist.data.files)[0]
 
   try {
     await octokit.gists.update({
       gist_id: gistId,
       files: {
         [filename]: {
-          'filename': `@${twitterHandle} - ${timeAgo} ago | ❤ ${tweet.favorite_count} | 🔁 ${tweet.retweet_count}`,
-          content: wrap(tweet.text)
+          content: wrap(item)
         }
       }
     })
-  } catch (error) {
-    console.error(`Unable to update gist\n${error}`)
+    console.log(`Updated gist to ${item}`)
+  } catch (err) {
+    console.error('Unable to update gist')
+    throw err
   }
-} 
+}
 
-(async () => {
-  await main();
+;(async () => {
+  await updateGist(getItem())
 })()
+
+process.on('unhandledrejection', process.exit)

@@ -11,16 +11,16 @@ commands:
       - checkout
       - restore_cache:
           keys:
-          - dependency-cache-{{ checksum "package.json" }}
+          - dependency-cache-{{ checksum "package-lock.json" }}
           - dependency-cache-
-      - run: npm install
+      - run: npm ci
       - save_cache:
-          key: dependency-cache-{{ checksum "package.json" }}
+          key: dependency-cache-{{ checksum "package-lock.json" }}
           paths:
             - node_modules
 
 jobs:
-  birdbox:
+  gist:
     <<: *defaults
     steps:
       - install
@@ -31,16 +31,15 @@ workflows:
 
   test:
     jobs:
-      - birdbox
+      - gist
 
   poll:
     triggers:
       - schedule:
-          # Run once every 5 minutes
-          cron: "0,5,10,15,20,25,30,35,40,45,50,55 * * * *"
+          cron: "0,30 * * * *"
           filters:
             branches:
               only:
                 - master
     jobs:
-      - birdbox
+      - gist
